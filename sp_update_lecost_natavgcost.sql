@@ -84,6 +84,7 @@ BEGIN
             ON eh."eventId" = eoh."eventId"
 			INNER JOIN "tProducts" p
             ON p."sku" = d."sku"
+            AND p."isActive" = TRUE
         INNER JOIN "tPriceProductRules" ppr
             ON ppr."sku" = d."sku"
             AND ppr."company" = eh."company"
@@ -236,7 +237,7 @@ BEGIN
       AND o."offerNumber" = p_offerNo
       AND o."OfferTypeId" IN 
         (1,3,4,5,13,17);
-    END;
+    END IF;
     
 	 SELECT MIN(COALESCE("everydayPriceGst", 0))
     INTO p_lowestEdPrice

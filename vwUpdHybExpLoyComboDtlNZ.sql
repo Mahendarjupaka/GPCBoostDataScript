@@ -23,25 +23,13 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpLoyComboDtlNZ"
                     ELSE NULL::text
                 END, 'V', 1) AS "PROMOTION_CODE",
             concat('Selection_', eo."offerNumber") AS "GROUP",
-             string_agg(
-                DISTINCT CASE
-                    WHEN eod."isSkuActive" = TRUE THEN eod.sku::text
-                    ELSE NULL
-                END,
-                ','::text
-                ORDER BY (
-                    CASE
-                        WHEN eod."isSkuActive" = TRUE THEN eod.sku::text
-                        ELSE NULL
-                    END
-                )
-            ) AS "PRODUCTS",
+            string_agg(eod.sku::text, ','::text ORDER BY (eod.sku::text)) AS "PRODUCTS",
             ev."salesKeyword"::text AS "SALE_KEYWORDS"
            FROM "tEvent" ev
-             JOIN "tEventOffer" eo ON ev."eventId" = eo."eventId"
+             JOIN "tEventOffer" eo ON ev."eventId" = eo."eventId" and eo."isOfferActive"=true
              JOIN "tOfferType" ot ON eo."commercialOfferType"::text = ot."offerType"::text AND ev.country::text = ot.country::text
              LEFT JOIN "tHybrisStickerText" hst ON eo."hybrisStickerText"::text = hst."hybrisStickerText"::text AND ev.country::text = hst.country::text
-             JOIN "tEventOfferDetail" eod ON eod."eventId" = eo."eventId" AND eod.page = eo.page AND eod."pagePosition" = eo."pagePosition" AND eod."offerId" = eo."offerId" AND eod."offerNo" = eo."offerNumber"
+             JOIN "tEventOfferDetail" eod ON eod."eventId" = eo."eventId" AND eod.page = eo.page AND eod."pagePosition" = eo."pagePosition" AND eod."offerId" = eo."offerId" AND eod."offerNo" = eo."offerNumber" and eod."isSkuActive"=true
           WHERE ev.locked = true AND eo."isNotAvailableOnline" = false AND eo."advertisedPrice" > 0::numeric AND ev.country::text = 'NZ'::text AND eo."isRewards" = true AND (ot."offerTypeId" = ANY (ARRAY[3, 103, 15, 115, 25]))
           GROUP BY ev."eventId", eo.page, eo."pagePosition", eo."offerId", eo."offerNumber", ot."offerTypeId", ev."salesKeyword"
         ), exploded AS (

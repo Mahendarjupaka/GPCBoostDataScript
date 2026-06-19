@@ -34,7 +34,7 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpLoyMultiBuyNZ"
     COALESCE(concat(eo."requiredQuantity"::text, ':', eo."totalMultiBuyPrice"::numeric(19,2)::text), ''::text) AS "VALUE",
     ( SELECT string_agg(DISTINCT eod.sku::text, ','::text ORDER BY (eod.sku::text)) AS string_agg
            FROM "tEventOfferDetail" eod
-          WHERE eod."eventId" = eo."eventId" AND eod.page = eo.page AND eod."pagePosition" = eo."pagePosition" AND eod."offerId" = eo."offerId" and eod."isSkuActive"=true) AS "PRODUCTS",
+          WHERE eod."eventId" = eo."eventId" AND eod.page = eo.page AND eod."pagePosition" = eo."pagePosition" AND eod."offerId" = eo."offerId") AS "PRODUCTS",
     ev."salesKeyword" AS "SALE_KEYWORDS"
    FROM "tEvent" ev
      JOIN "tEventOffer" eo ON ev."eventId" = eo."eventId" and eo."isOfferActive"=true

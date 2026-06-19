@@ -40,7 +40,7 @@ CREATE OR REPLACE FUNCTION public.get_products_by_filters(
 AS $BODY$
 DECLARE
     v_sql TEXT;
-    v_where TEXT := ' WHERE UPPER(country) = UPPER((SELECT country FROM "tEvent" WHERE "eventId" = ' || p_event_id || ')) AND "isSkuActive" = TRUE ';
+    v_where TEXT := ' WHERE UPPER(country) = UPPER((SELECT country FROM "tEvent" WHERE "eventId" = ' || p_event_id || ')) AND "isActive" = TRUE ';
     v_order TEXT := ' ORDER BY e."offerNo" ';  -- default
     v_offset INT := (p_page_number - 1) * p_page_size;
 	v_searched_at_date_literal TEXT;
@@ -48,7 +48,7 @@ DECLARE
 	v_new_count INT;
 	v_eventOffer_count INT;
 	v_new_count_sql TEXT := '';
-	v_where_new_skus TEXT := ' WHERE UPPER(country) = UPPER((SELECT country FROM "tEvent"  WHERE "eventId" = ' || p_event_id || ')) AND "isSkuActive" = TRUE ';
+	v_where_new_skus TEXT := ' WHERE UPPER(country) = UPPER((SELECT country FROM "tEvent"  WHERE "eventId" = ' || p_event_id || ')) AND "isActive" = TRUE ';
 
 BEGIN
 
@@ -266,7 +266,7 @@ BEGIN
            ON 
 		   f."sku" = e."sku"
 		   AND e."offerId" = ' || COALESCE(p_offerId::text, 'NULL') || '
-           AND e."isSkuActive" = true
+         
           
   WHERE 
       (' || (CASE WHEN p_selected THEN 'e."sku" IS NOT NULL' ELSE 'TRUE' END) || ')
@@ -312,7 +312,7 @@ BEGIN
 		   f."sku" = e."sku"
 		   AND e."offerId" = ' || COALESCE(p_offerId::text, 'NULL') || '
            AND e."offerNo" = ' || COALESCE(p_offerNo::text, 'NULL') || '
-           AND e."isSkuActive" = true
+          
     
   WHERE 
       (' || (CASE WHEN p_selected THEN 'e."sku" IS NOT NULL' ELSE 'TRUE' END) || ')

@@ -2,7 +2,7 @@
 
   -- DROP PROCEDURE IF EXISTS public.sp_inbound_independent();
 
-  CREATE OR REPLACE PROCEDURE public.sp_inbound_independent_OB_421(
+  CREATE OR REPLACE PROCEDURE public.sp_inbound_independent(
       )
   LANGUAGE 'plpgsql'
   AS $BODY$
@@ -158,13 +158,15 @@
           SELECT
               "company",
               "priceList",
+              "country",
               MIN(ctid) AS keep_ctid
           FROM public."tPriceList_temp"
-          GROUP BY "company", "priceList"
+          GROUP BY "company", "priceList","country"
           HAVING COUNT(*) > 1
       ) dups
       WHERE t."company" = dups."company"
         AND t."priceList" = dups."priceList"
+        AND t."country"=dups."country"
         AND t.ctid <> dups.keep_ctid;
 
       -- CHANGE: Mark records as inactive if they're not in today's data
@@ -238,83 +240,80 @@
       --------------------------------------------------------------------------------
       -- STEP 6: tPriceListDetail 
       --------------------------------------------------------------------------------
-      RAISE NOTICE 'Processing tPriceListDetail...';
+    RAISE NOTICE 'Processing tPriceListDetail...';
 
-      -- FIX: First mark inactive records in separate operation
-      UPDATE public."tPriceListDetail"
-      SET "isActive" = FALSE,
-          "updatedAt" = (NOW() AT TIME ZONE 'Australia/Sydney')
-      WHERE "isActive" = TRUE
-        AND NOT EXISTS (
-            SELECT 1
-            FROM public."tPriceListDetail_temp" t
-            WHERE t.company = "tPriceListDetail".company
-              AND t.country = "tPriceListDetail".country
-              AND t."priceList" = "tPriceListDetail"."priceList"
-              AND t.sku = "tPriceListDetail".sku
-              AND t."startDate" <= CURRENT_DATE
-              AND t."endDate" >= CURRENT_DATE
-        );
 
-      -- CHANGE: Get count of records marked as inactive
-      GET DIAGNOSTICS v_pricelistdetail_inactive = ROW_COUNT;
-      RAISE NOTICE 'tPriceListDetail: Marked % existing records as inactive', v_pricelistdetail_inactive;
+UPDATE public."tPriceListDetail"
+SET "isActive" = FALSE,
+    "updatedAt" = (NOW() AT TIME ZONE 'Australia/Sydney')
+WHERE "isActive" = TRUE
+  AND NOT EXISTS (
+      SELECT 1
+      FROM public."tPriceListDetail_temp" t
+      WHERE t.company = "tPriceListDetail".company
+        AND t.country ="tPriceListDetail".country
+        AND t."priceList" = "tPriceListDetail"."priceList"
+        AND t.sku  = "tPriceListDetail".sku
+        AND t."startDate" <= CURRENT_DATE   
+        AND t."endDate"   >= CURRENT_DATE   
+  );
 
-      -- FIX: Now do INSERT with CTE in single operation
-      WITH dedup AS (
-          SELECT *,
-                 ROW_NUMBER() OVER (
-                     PARTITION BY company, country, "priceList", sku
-                     ORDER BY "startDate" DESC
-                 ) AS rn
-          FROM public."tPriceListDetail_temp"
-          WHERE "startDate" <= CURRENT_DATE
-            AND "endDate" >= CURRENT_DATE
-      )
-      INSERT INTO public."tPriceListDetail" (
-          company,
-          "priceList",
-          sku,
-          "dateAdded",
-          "startDate",
-          "endDate",
-          "gstInclusiveIndicator",
-          "priceListPrice",
-          country,
-          -- CHANGE: Added isActive column to INSERT
-          "isActive",
-          "createdAt",
-          "updatedAt"
-      )
-      SELECT
-          t.company,
-          t."priceList",
-          t.sku,
-          t."dateAdded",
-          t."startDate",
-          t."endDate",
-          t."gstInclusiveIndicator",
-          t."priceListPrice",
-          t.country,
-          -- CHANGE: Mark all new/updated records as active
-          TRUE AS "isActive",
-          (NOW() AT TIME ZONE 'Australia/Sydney') AS "createdAt",
-          (NOW() AT TIME ZONE 'Australia/Sydney') AS "updatedAt"
-      FROM dedup t
-      WHERE rn = 1
-      ON CONFLICT (company, country, "priceList", sku)
-      DO UPDATE SET
-          "dateAdded" = EXCLUDED."dateAdded",
-          "startDate" = EXCLUDED."startDate",
-          "endDate" = EXCLUDED."endDate",
-          "gstInclusiveIndicator" = EXCLUDED."gstInclusiveIndicator",
-          "priceListPrice" = EXCLUDED."priceListPrice",
-          -- CHANGE: Reactivate records if they were inactive
-          "isActive" = TRUE,
-          "updatedAt" = (NOW() AT TIME ZONE 'Australia/Sydney');
+GET DIAGNOSTICS v_pricelistdetail_inactive = ROW_COUNT;
+RAISE NOTICE 'tPriceListDetail: Marked % existing records as inactive', 
+    v_pricelistdetail_inactive;
 
-      GET DIAGNOSTICS v_row_count = ROW_COUNT;
-      RAISE NOTICE 'tPriceListDetail: % rows upserted', v_row_count;
+
+WITH dedup AS (
+    SELECT *,
+           ROW_NUMBER() OVER (
+               PARTITION BY company, country, "priceList", sku
+               ORDER BY "startDate" DESC
+           ) AS rn
+    FROM public."tPriceListDetail_temp"
+    WHERE "startDate" <= CURRENT_DATE    
+      AND "endDate"   >= CURRENT_DATE   
+)
+INSERT INTO public."tPriceListDetail" (
+    company,
+    "priceList",
+    sku,
+    "dateAdded",
+    "startDate",
+    "endDate",
+    "gstInclusiveIndicator",
+    "priceListPrice",
+    country,
+    "isActive",
+    "createdAt",
+    "updatedAt"
+)
+SELECT
+    t.company,
+    t."priceList",
+    t.sku,
+    t."dateAdded",
+    t."startDate",
+    t."endDate",
+    t."gstInclusiveIndicator",
+    t."priceListPrice",
+    t.country,
+    TRUE AS "isActive",
+    (NOW() AT TIME ZONE 'Australia/Sydney') AS "createdAt",
+    (NOW() AT TIME ZONE 'Australia/Sydney') AS "updatedAt"
+FROM dedup t
+WHERE rn = 1
+ON CONFLICT (company, country, "priceList", sku)
+DO UPDATE SET
+    "dateAdded"              = EXCLUDED."dateAdded",
+    "startDate"              = EXCLUDED."startDate",
+    "endDate"                = EXCLUDED."endDate",
+    "gstInclusiveIndicator"  = EXCLUDED."gstInclusiveIndicator",
+    "priceListPrice"         = EXCLUDED."priceListPrice",
+    "isActive"               = TRUE,
+    "updatedAt"              = (NOW() AT TIME ZONE 'Australia/Sydney');
+
+GET DIAGNOSTICS v_row_count = ROW_COUNT;
+RAISE NOTICE 'tPriceListDetail: % rows upserted', v_row_count;
 
       --------------------------------------------------------------------------------
       -- STEP 7: tPriceProfile (COUNTRY-SPECIFIC)
@@ -503,5 +502,5 @@
           RAISE EXCEPTION 'Error in sp_inbound_independent: % - %', SQLERRM, SQLSTATE;
   END;
   $BODY$;
-  ALTER PROCEDURE public.sp_inbound_independent_OB_421()
+  ALTER PROCEDURE public.sp_inbound_independent()
       OWNER TO cdcaudevadmin;

@@ -23,46 +23,14 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpComboDtlNZ"
                     ELSE NULL::text
                 END, 'V', 1) AS "PROMOTION_CODE",
             concat('Selection_', eoh."offerNumber") AS "GROUP",
-            -- Only aggregate active SKUs
-            string_agg(
-                DISTINCT CASE
-                    WHEN eod."isSkuActive" = TRUE THEN eod.sku::text
-                    ELSE NULL
-                END,
-                ','::text
-                ORDER BY (
-                    CASE
-                        WHEN eod."isSkuActive" = TRUE THEN eod.sku::text
-                        ELSE NULL
-                    END
-                )
-            ) AS "PRODUCTS",
+            string_agg(eod.sku::text, ','::text ORDER BY (eod.sku::text)) AS "PRODUCTS",
             eh."salesKeyword"::text AS "SALE_KEYWORDS"
            FROM "tEvent" eh
-             JOIN "tEventOffer" eoh ON eh."eventId" = eoh."eventId"
-             JOIN "tOfferType" ot ON upper(eoh."commercialOfferType"::text) = upper(ot."offerType"::text) 
-                AND eh.country::text = ot.country::text
-             JOIN "tEventOfferDetail" eod ON eod."eventId" = eoh."eventId" 
-                AND eod.page = eoh.page 
-                AND eod."pagePosition" = eoh."pagePosition" 
-                AND eod."offerId" = eoh."offerId" 
-                AND eod."offerNo" = eoh."offerNumber"
-          WHERE eh.locked = true 
-            AND COALESCE(eoh."isNotAvailableOnline", false) = false 
-            AND eoh."advertisedPrice" > 0::numeric 
-            AND "left"(eh."eventType"::text, 3) <> 'LOY'::text 
-            AND eh.country::text = 'NZ'::text 
-            AND (ot."offerTypeId" = ANY (ARRAY[3, 15, 25]))
-            
-            AND NOT (eh."eventType"::text = 'Retail Catalogue'::text AND eoh."pagePosition" = 0)
-          GROUP BY 
-            eh."eventId", 
-            eoh.page, 
-            eoh."pagePosition", 
-            eoh."offerId", 
-            eoh."offerNumber", 
-            ot."offerTypeId", 
-            eh."salesKeyword"
+             JOIN "tEventOffer" eoh ON eh."eventId" = eoh."eventId" and eoh."isOfferActive"=true
+             JOIN "tOfferType" ot ON upper(eoh."commercialOfferType"::text) = upper(ot."offerType"::text) AND eh.country::text = ot.country::text
+             JOIN "tEventOfferDetail" eod ON eod."eventId" = eoh."eventId" AND eod.page = eoh.page AND eod."pagePosition" = eoh."pagePosition" AND eod."offerId" = eoh."offerId" AND eod."offerNo" = eoh."offerNumber" and eod."isSkuActive"=true
+          WHERE eh.locked = true AND COALESCE(eoh."isNotAvailableOnline", false) = false AND eoh."advertisedPrice" > 0::numeric AND "left"(eh."eventType"::text, 3) <> 'LOY'::text AND eh.country::text = 'NZ'::text AND (ot."offerTypeId" = ANY (ARRAY[3, 15, 25])) AND eod."isSkuActive" = true AND NOT (eh."eventType"::text = 'Retail Catalogue'::text AND eoh."pagePosition" = 0)
+          GROUP BY eh."eventId", eoh.page, eoh."pagePosition", eoh."offerId", eoh."offerNumber", ot."offerTypeId", eh."salesKeyword"
         ), exploded AS (
          SELECT b."eventId",
             b.page,
@@ -102,17 +70,7 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpComboDtlNZ"
             floor(((exploded_rn.rn - 1) / 3000)::double precision)::integer AS chunk_index,
             string_agg(exploded_rn.sku_single, ','::text ORDER BY exploded_rn.sku_single) AS "PRODUCTS"
            FROM exploded_rn
-          GROUP BY 
-            exploded_rn."eventId", 
-            exploded_rn.page, 
-            exploded_rn."pagePosition", 
-            exploded_rn."offerId", 
-            exploded_rn."offerNumber", 
-            exploded_rn."offerTypeId", 
-            exploded_rn."PROMOTION_CODE", 
-            exploded_rn."GROUP", 
-            exploded_rn."SALE_KEYWORDS", 
-            (floor(((exploded_rn.rn - 1) / 3000)::double precision))
+          GROUP BY exploded_rn."eventId", exploded_rn.page, exploded_rn."pagePosition", exploded_rn."offerId", exploded_rn."offerNumber", exploded_rn."offerTypeId", exploded_rn."PROMOTION_CODE", exploded_rn."GROUP", exploded_rn."SALE_KEYWORDS", (floor(((exploded_rn.rn - 1) / 3000)::double precision))
         )
  SELECT
         CASE
@@ -126,3 +84,4 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpComboDtlNZ"
 
 ALTER TABLE public."vwUpdHybExpComboDtlNZ"
     OWNER TO cdcaudevadmin;
+

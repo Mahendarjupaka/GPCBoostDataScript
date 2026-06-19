@@ -111,7 +111,7 @@ BEGIN
             and ppr."supplierId"=p."supplierId"
             and ppr."startDate"<=CURRENT_DATE and  ppr."endDate">=CURRENT_DATE
             and ppr."isActive" = TRUE
-        INNER JOIN "tProducts" p ON p."sku" = eod."sku"
+        INNER JOIN "tProducts" p ON p."sku" = eod."sku" and p."isActive" = TRUE
           LEFT JOIN "tInventory" inv ON inv."sku" = eod."sku" and inv."company" IN (eh."company",'12','52')
 		 LEFT JOIN "tSalesY1" s
             ON s."sku" = eod."sku"
@@ -206,7 +206,6 @@ BEGIN
 		"gst" = c.gst_value ,
 		"calculatedSaveValue"= Round(e."everydayPriceGst"-c.new_advertisedPriceGst,2) ,
 		"calculatedSavePercentage" = CASE
-    WHEN c."isActive" = FALSE THEN 0
     WHEN c.new_everydayPriceGst > 0 THEN ROUND(((c.new_everydayPriceGst - c.new_advertisedPriceGst) / c.new_everydayPriceGst)* 100, 2)
     ELSE 0 
 END,
@@ -229,8 +228,8 @@ END,
         "everydayCost" = COALESCE(c.natAvgCost, 0) ,
         "incrementalSales"=Round(Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) - (ROUND(c.calc_units)*c.new_everydayPriceGst),2) ,
         "incrementalTrade$" =  ROUND( ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorCostPerEach",0),2)) * c.categoryFcst,2) - ROUND((Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2)-ROUND(COALESCE(c."vendorCostPerEach",0),2) )*ROUND(c.calc_units),2), 2) ,
-        "forecastTradeMargin%" = CASE WHEN c."isActive" = FALSE THEN 0
-        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) > 0
+        "forecastTradeMargin%" = CASE 
+        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPrice,2),2) > 0
         THEN             
                ROUND(
 			  ((c.new_advertisedPrice - ROUND(COALESCE(c."vendorCostPerEach",0),2)) * c.categoryFcst)
@@ -427,6 +426,7 @@ WHERE o."offerId" = s."offerId"
             and ppr."isActive" = TRUE
         INNER JOIN "tProducts" p
             ON p."sku" = eod."sku"
+            and p."isActive" = TRUE
         LEFT JOIN "tInventory" inv
             ON inv."sku" = eod."sku"
 			AND inv."company" IN (eh."company",'12','52')
@@ -508,7 +508,7 @@ WHERE o."offerId" = s."offerId"
 		"advertisedPrice" = c.new_advertisedPrice ,
 		"calculatedSaveValue"= Round(c.new_everydayPriceGst-c.new_advertisedPriceGst,2) ,
 		"calculatedSavePercentage" = CASE
-    WHEN c."isActive" = FALSE THEN 0
+    
     WHEN c.new_everydayPriceGst > 0 THEN ROUND(((c.new_everydayPriceGst - c.new_advertisedPriceGst) / c.new_everydayPriceGst)* 100, 2)
     ELSE 0 
 END,
@@ -531,8 +531,8 @@ END,
         "everydayCost" = COALESCE(c.natAvgCost, 0) ,
        "incrementalSales"=Round(Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) - (ROUND(c.calc_units)*c.new_everydayPriceGst),2) ,
         "incrementalTrade$" =  ROUND( ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorCostPerEach",0),2)) * c.categoryFcst,2) - ROUND((Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2)-ROUND(COALESCE(c."vendorCostPerEach",0),2) )*ROUND(c.calc_units),2), 2) ,
-         "forecastTradeMargin%" = CASE WHEN c."isActive" = FALSE THEN 0
-        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) > 0
+         "forecastTradeMargin%" = CASE 
+        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPrice,2),2) > 0
         THEN             
               ROUND(
 			  ((c.new_advertisedPrice - ROUND(COALESCE(c."vendorCostPerEach",0),2)) * c.categoryFcst)
@@ -725,6 +725,7 @@ WHERE o."offerId" = s."offerId"
             and ppr."isActive" = TRUE
         INNER JOIN "tProducts" p
             ON p."sku" = eod."sku"
+            and p."isActive" = TRUE
         LEFT JOIN "tInventory" inv
             ON inv."sku" = eod."sku"
 			AND inv."company" IN (eh."company",'12','52')
@@ -806,7 +807,6 @@ WHERE o."offerId" = s."offerId"
 		"gst" = c.gst_value ,
 		"calculatedSaveValue"= Round(c.new_everydayPriceGst-c.new_advertisedPriceGst,2) ,
 		"calculatedSavePercentage" = CASE
-    WHEN c."isActive" = FALSE THEN 0
     WHEN c.new_everydayPriceGst > 0 THEN ROUND(((c.new_everydayPriceGst - c.new_advertisedPriceGst) / c.new_everydayPriceGst)* 100, 2)
     ELSE 0 
 END,
@@ -829,8 +829,8 @@ END,
         "everydayCost" = COALESCE(c.natAvgCost, 0) ,
         "incrementalSales"=Round(Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) - (ROUND(c.calc_units)*c.new_everydayPriceGst),2) ,
         "incrementalTrade$" =  ROUND( ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorCostPerEach",0),2)) * c.categoryFcst,2) - ROUND((Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2)-ROUND(COALESCE(c."vendorCostPerEach",0),2) )*ROUND(c.calc_units),2), 2) ,
-        "forecastTradeMargin%" = CASE WHEN c."isActive" = FALSE THEN 0
-        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) > 0
+        "forecastTradeMargin%" = CASE 
+        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPrice,2),2) > 0
         THEN             
               ROUND(((c.new_advertisedPrice - ROUND(COALESCE(c."vendorCostPerEach",0),2)) * c.categoryFcst) / (c.categoryFcst * c.new_advertisedPrice) * 100, 2)
         ELSE 0
@@ -1020,6 +1020,7 @@ WHERE o."offerId" = s."offerId"
             and ppr."isActive" = TRUE
         INNER JOIN "tProducts" p
             ON p."sku" = eod."sku"
+            and p."isActive" = TRUE
         LEFT JOIN "tInventory" inv
             ON inv."sku" = eod."sku"
 			AND inv."company" IN (eh."company", '12', '52')
@@ -1123,7 +1124,6 @@ WHERE o."offerId" = s."offerId"
 		"gst" = c.gst_value ,
 		"calculatedSaveValue"= Round(e."everydayPriceGst"-c.new_advertisedPriceGst,2) ,
 		"calculatedSavePercentage" = CASE
-    WHEN c."isActive" = FALSE THEN 0
     WHEN c.new_everydayPriceGst > 0 THEN ROUND(((c.new_everydayPriceGst - c.new_advertisedPriceGst) / c.new_everydayPriceGst)* 100, 2)
     ELSE 0 
 END,
@@ -1145,8 +1145,8 @@ END,
         "everydayCost" = COALESCE(c.natAvgCost, 0) ,
         "incrementalSales"=Round(Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) - (ROUND(c.calc_units)*c.new_everydayPriceGst),2) ,
         "incrementalTrade$" =  ROUND( ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorCostPerEach",0),2)) * c.categoryFcst,2) - ROUND((Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2)-ROUND(COALESCE(c."vendorCostPerEach",0),2) )*ROUND(c.calc_units),2), 2) ,
-        "forecastTradeMargin%" = CASE WHEN c."isActive" = FALSE THEN 0
-        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) > 0
+        "forecastTradeMargin%" = CASE 
+        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPrice,2),2) > 0
         THEN             
                ROUND(((c.new_advertisedPrice - ROUND(COALESCE(c."vendorCostPerEach",0),2)) * c.categoryFcst) / (c.categoryFcst * c.new_advertisedPrice) * 100, 2)
         ELSE 0
@@ -1337,6 +1337,7 @@ END IF;
             and ppr."isActive" = TRUE
         INNER JOIN "tProducts" p
             ON p."sku" = eod."sku"
+            and p."isActive" = TRUE
         LEFT JOIN "tInventory" inv
             ON inv."sku" = eod."sku"
 			AND inv."company" IN (eh."company",'12','52')
@@ -1428,8 +1429,8 @@ END IF;
         "everydayCost" = COALESCE(c.natAvgCost, 0) ,
         "incrementalSales"=Round(Round(c.categoryFcst*ROUND(c.new_everydayPriceGst,2),2) - (ROUND(c.calc_units)*c.new_everydayPriceGst),2) ,
         "incrementalTrade$" =  ROUND( ROUND((c.new_everydayPriceExGst - ROUND(COALESCE(c."vendorCostPerEach",0),2)) * c.categoryFcst,2) - ROUND((Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2)-ROUND(COALESCE(c."vendorCostPerEach",0),2) )*ROUND(c.calc_units),2), 2) ,
-        "forecastTradeMargin%" = CASE WHEN c."isActive" = FALSE THEN 0
-        WHEN Round(c.categoryFcst*ROUND(c.new_everydayPriceGst,2),2) > 0
+        "forecastTradeMargin%" = CASE 
+        WHEN Round(c.categoryFcst*ROUND(c.new_everydayPrice,2),2) > 0
         THEN             
               ROUND(((c.new_everydayPriceExGst - ROUND(COALESCE(c."vendorCostPerEach",0),2)) * c.categoryFcst) / (c.categoryFcst * c.new_everydayPriceExGst) * 100, 2)
         ELSE 0

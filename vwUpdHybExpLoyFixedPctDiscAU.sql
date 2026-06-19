@@ -1,7 +1,10 @@
+-- View: public.vwUpdHybExpLoyFixedPctDiscAU
+
+-- DROP VIEW public."vwUpdHybExpLoyFixedPctDiscAU";
+
 CREATE OR REPLACE VIEW public."vwUpdHybExpLoyFixedPctDiscAU"
  AS
  WITH base AS (
-        -- 1st query: offerTypeIds 1,101 (only active SKUs) and 6,106 (fromPriceIndicator=true)
          SELECT eo."eventId" AS event_id,
             eo.page,
             eo."pagePosition",
@@ -35,54 +38,19 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpLoyFixedPctDiscAU"
                     ELSE round(max(eod."advertisedPriceGst"), 2)::numeric(19,2)::character varying(50)
                 END AS "VALUE",
             max(tc.configvalue ->> 'CURRTXT'::text) AS "CURRENCY",
-            -- Only aggregate active SKUs
-            string_agg(
-                DISTINCT CASE 
-                    WHEN eod."isSkuActive" = TRUE THEN eod.sku::text 
-                    ELSE NULL 
-                END, 
-                ','::text 
-                ORDER BY (
-                    CASE 
-                        WHEN eod."isSkuActive" = TRUE THEN eod.sku::text 
-                        ELSE NULL 
-                    END
-                )
-            ) AS "PRODUCTS",
+            string_agg(DISTINCT eod.sku::text, ','::text ORDER BY (eod.sku::text)) AS "PRODUCTS",
             'False'::text AS "SHOW_PRICE_STRIKE_THROUGH",
             max(ev."salesKeyword"::text) AS "SALE_KEYWORDS"
            FROM "tEvent" ev
              JOIN "tEventOffer" eo ON ev."eventId" = eo."eventId"
-             JOIN "tEventOfferDetail" eod ON eo."eventId" = eod."eventId" 
-                AND eo.page = eod.page 
-                AND eo."pagePosition" = eod."pagePosition" 
-                AND eo."offerId" = eod."offerId" 
-                AND eo."offerNumber" = eod."offerNo"
+             JOIN "tEventOfferDetail" eod ON eo."eventId" = eod."eventId" AND eo.page = eod.page AND eo."pagePosition" = eod."pagePosition" AND eo."offerId" = eod."offerId" AND eo."offerNumber" = eod."offerNo" and eod."isSkuActive"=true
              JOIN "tProducts" p ON eod.sku::text = p.sku::text
-             JOIN "tOfferType" ot ON eo."commercialOfferType"::text = ot."offerType"::text 
-                AND ev.country::text = ot.country::text
-             JOIN "tConfig" tc ON ev.country::text = tc.configkey::text 
-                AND tc.configtype::text = 'COUNTRY'::text
-             LEFT JOIN "tHybrisStickerText" hst ON eo."hybrisStickerText"::text = hst."hybrisStickerText"::text 
-                AND ev.country::text = hst.country::text
-          WHERE ev.country::text = 'AU'::text 
-            AND ev.locked = true 
-            AND eo."isNotAvailableOnline" = false 
-            AND eod."advertisedPrice" > 0::numeric 
-            AND (
-                -- offerTypeId = 1,101: only active SKUs allowed
-                (ot."offerTypeId" = ANY (ARRAY[1, 101]) AND eod."isSkuActive" = TRUE)
-                OR 
-                -- offerTypeId = 6,106: all records with fromPriceIndicator condition
-                (ot."offerTypeId" = ANY (ARRAY[6, 106]) AND eod."fromPriceIndicator" = true)
-            )
-            AND eo."isRewards" = true 
-            AND NOT (ev."eventType"::text = 'Retail Catalogue'::text AND eo."pagePosition" = 0)
+             JOIN "tOfferType" ot ON eo."commercialOfferType"::text = ot."offerType"::text AND ev.country::text = ot.country::text
+             JOIN "tConfig" tc ON ev.country::text = tc.configkey::text AND tc.configtype::text = 'COUNTRY'::text
+             LEFT JOIN "tHybrisStickerText" hst ON eo."hybrisStickerText"::text = hst."hybrisStickerText"::text AND ev.country::text = hst.country::text
+          WHERE ev.country::text = 'AU'::text AND ev.locked = true AND eo."isNotAvailableOnline" = false AND eod."advertisedPrice" > 0::numeric AND ((ot."offerTypeId" = ANY (ARRAY[1, 101])) OR (ot."offerTypeId" = ANY (ARRAY[6, 106])) AND eod."fromPriceIndicator" = true) AND eo."isRewards" = true AND NOT (ev."eventType"::text = 'Retail Catalogue'::text AND eo."pagePosition" = 0)
           GROUP BY eo."eventId", eo.page, eo."pagePosition", eo."offerId", ot."offerTypeId", ((floor(eod."calculatedSavePercentage" / 5::numeric) * 5::numeric)::integer), (round(eod."advertisedPriceGst"::numeric, 2)::numeric(19,2)), ot."hybrisLoyaltyStickerBackgroundColor", ot."hybrisLoyaltyStickerTextColor", ot."hybrisLoyaltyStickerText", ot."hybrisLoyaltyPillBackgroundColor", ot."hybrisLoyaltyPillTextColor", ot."hybrisLoyaltyPillText", ot."hybrisLoyaltyCartMessage", eo."hybrisPillText", ev."priceList", ev."startDate", ev."endDate", ev."startTime", ev."endTime", eod."fromPriceIndicator", eod."advertisedPriceGst"
-
         UNION ALL
-
-        -- 2nd query: offerTypeIds 6,106 with fromPriceIndicator=false (all records, only active SKUs in string_agg)
          SELECT eo."eventId" AS event_id,
             eo.page,
             eo."pagePosition",
@@ -106,47 +74,18 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpLoyFixedPctDiscAU"
             concat(to_char(ev."endDate"::timestamp with time zone, 'DD-MM-YYYY'::text), ' ', ev."endTime") AS "END_DATE",
             round(eo."savePercent", 2)::character varying(50) AS "VALUE",
             NULL::text AS "CURRENCY",
-            -- Only aggregate active SKUs
-            string_agg(
-                DISTINCT CASE 
-                    WHEN eod."isSkuActive" = TRUE THEN eod.sku::text 
-                    ELSE NULL 
-                END,
-                ','::text 
-                ORDER BY (
-                    CASE 
-                        WHEN eod."isSkuActive" = TRUE THEN eod.sku::text 
-                        ELSE NULL 
-                    END
-                )
-            ) AS "PRODUCTS",
+            string_agg(DISTINCT eod.sku::text, ','::text ORDER BY (eod.sku::text)) AS "PRODUCTS",
             'False'::text AS "SHOW_PRICE_STRIKE_THROUGH",
             max(ev."salesKeyword"::text) AS "SALE_KEYWORDS"
            FROM "tEvent" ev
              JOIN "tEventOffer" eo ON ev."eventId" = eo."eventId"
-             JOIN "tEventOfferDetail" eod ON eo."eventId" = eod."eventId" 
-                AND eo.page = eod.page 
-                AND eo."pagePosition" = eod."pagePosition" 
-                AND eo."offerId" = eod."offerId" 
-                AND eo."offerNumber" = eod."offerNo"
+             JOIN "tEventOfferDetail" eod ON eo."eventId" = eod."eventId" AND eo.page = eod.page AND eo."pagePosition" = eod."pagePosition" AND eo."offerId" = eod."offerId" AND eo."offerNumber" = eod."offerNo" and eod."isSkuActive"=true
              JOIN "tProducts" p ON eod.sku::text = p.sku::text
-             JOIN "tOfferType" ot ON eo."commercialOfferType"::text = ot."offerType"::text 
-                AND ev.country::text = ot.country::text
-             LEFT JOIN "tHybrisStickerText" hst ON eo."hybrisStickerText"::text = hst."hybrisStickerText"::text 
-                AND ev.country::text = hst.country::text
-          WHERE ev.country::text = 'AU'::text 
-            AND ev.locked = true 
-            AND eo."isNotAvailableOnline" = false 
-            AND eod."advertisedPrice" > 0::numeric 
-            AND (ot."offerTypeId" = ANY (ARRAY[6, 106])) 
-            AND COALESCE(eod."fromPriceIndicator", false) = false 
-            AND eo."isRewards" = true 
-            AND NOT (ev."eventType"::text = 'Retail Catalogue'::text AND eo."pagePosition" = 0)
+             JOIN "tOfferType" ot ON eo."commercialOfferType"::text = ot."offerType"::text AND ev.country::text = ot.country::text
+             LEFT JOIN "tHybrisStickerText" hst ON eo."hybrisStickerText"::text = hst."hybrisStickerText"::text AND ev.country::text = hst.country::text
+          WHERE ev.country::text = 'AU'::text AND ev.locked = true AND eo."isNotAvailableOnline" = false AND eod."advertisedPrice" > 0::numeric AND (ot."offerTypeId" = ANY (ARRAY[6, 106])) AND COALESCE(eod."fromPriceIndicator", false) = false AND eo."isRewards" = true AND NOT (ev."eventType"::text = 'Retail Catalogue'::text AND eo."pagePosition" = 0)
           GROUP BY eo."eventId", eo.page, eo."pagePosition", eo."offerId", ot."offerTypeId", eo."savePercent", ot."hybrisLoyaltyStickerBackgroundColor", ot."hybrisLoyaltyStickerTextColor", ot."hybrisLoyaltyStickerText", ot."hybrisLoyaltyPillBackgroundColor", ot."hybrisLoyaltyPillTextColor", ot."hybrisLoyaltyCartMessage", ev."priceList", ev."startDate", ev."endDate", ev."startTime", ev."endTime"
-
         UNION ALL
-
-        -- 3rd query: offerTypeId=13 (only active SKUs) and offerTypeId=23 (all records)
          SELECT eo."eventId" AS event_id,
             eo.page,
             eo."pagePosition",
@@ -173,54 +112,19 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpLoyFixedPctDiscAU"
             concat(to_char(ev."endDate"::timestamp with time zone, 'DD-MM-YYYY'::text), ' ', ev."endTime") AS "END_DATE",
             round(max(eod."advertisedPriceGst"), 2)::numeric(19,2)::character varying(50) AS "VALUE",
             max(tc.configvalue ->> 'CURRTXT'::text) AS "CURRENCY",
-            -- Only aggregate active SKUs
-            string_agg(
-                DISTINCT CASE 
-                    WHEN eod."isSkuActive" = TRUE THEN eod.sku::text 
-                    ELSE NULL 
-                END,
-                ','::text 
-                ORDER BY (
-                    CASE 
-                        WHEN eod."isSkuActive" = TRUE THEN eod.sku::text 
-                        ELSE NULL 
-                    END
-                )
-            ) AS "PRODUCTS",
+            string_agg(DISTINCT eod.sku::text, ','::text ORDER BY (eod.sku::text)) AS "PRODUCTS",
             'False'::text AS "SHOW_PRICE_STRIKE_THROUGH",
             max(ev."salesKeyword"::text) AS "SALE_KEYWORDS"
            FROM "tEvent" ev
              JOIN "tEventOffer" eo ON ev."eventId" = eo."eventId"
-             JOIN "tEventOfferDetail" eod ON eo."eventId" = eod."eventId" 
-                AND eo.page = eod.page 
-                AND eo."pagePosition" = eod."pagePosition" 
-                AND eo."offerId" = eod."offerId" 
-                AND eo."offerNumber" = eod."offerNo"
+             JOIN "tEventOfferDetail" eod ON eo."eventId" = eod."eventId" AND eo.page = eod.page AND eo."pagePosition" = eod."pagePosition" AND eo."offerId" = eod."offerId" AND eo."offerNumber" = eod."offerNo" and eod."isSkuActive"=true
              JOIN "tProducts" p ON eod.sku::text = p.sku::text
-             JOIN "tOfferType" ot ON eo."commercialOfferType"::text = ot."offerType"::text 
-                AND ev.country::text = ot.country::text
-             JOIN "tConfig" tc ON ev.country::text = tc.configkey::text 
-                AND tc.configtype::text = 'COUNTRY'::text
-             LEFT JOIN "tHybrisStickerText" hst ON eo."hybrisStickerText"::text = hst."hybrisStickerText"::text 
-                AND ev.country::text = hst.country::text
-          WHERE ev.country::text = 'AU'::text 
-            AND ev.locked = true 
-            AND eo."isNotAvailableOnline" = false 
-            AND eod."advertisedPrice" > 0::numeric 
-            AND (
-                -- offerTypeId = 13: only active SKU records
-                (ot."offerTypeId" = 13 AND eod."isSkuActive" = TRUE)
-                OR
-                -- offerTypeId = 23: all records
-                (ot."offerTypeId" = 23)
-            )
-            AND eo."isRewards" = true 
-            AND NOT (ev."eventType"::text = 'Retail Catalogue'::text AND eo."pagePosition" = 0)
+             JOIN "tOfferType" ot ON eo."commercialOfferType"::text = ot."offerType"::text AND ev.country::text = ot.country::text
+             JOIN "tConfig" tc ON ev.country::text = tc.configkey::text AND tc.configtype::text = 'COUNTRY'::text
+             LEFT JOIN "tHybrisStickerText" hst ON eo."hybrisStickerText"::text = hst."hybrisStickerText"::text AND ev.country::text = hst.country::text
+          WHERE ev.country::text = 'AU'::text AND ev.locked = true AND eo."isNotAvailableOnline" = false AND eod."advertisedPrice" > 0::numeric AND (ot."offerTypeId" = ANY (ARRAY[13, 23])) AND eo."isRewards" = true AND NOT (ev."eventType"::text = 'Retail Catalogue'::text AND eo."pagePosition" = 0)
           GROUP BY eo."eventId", eo.page, eo."pagePosition", eo."offerId", ot."offerTypeId", (round(eod."advertisedPriceGst"::numeric, 2)::numeric(19,2)), ot."hybrisLoyaltyStickerBackgroundColor", ot."hybrisLoyaltyStickerTextColor", ot."hybrisLoyaltyStickerText", ot."hybrisLoyaltyPillBackgroundColor", ot."hybrisLoyaltyPillTextColor", ot."hybrisLoyaltyPillText", ot."hybrisLoyaltyCartMessage", eo."hybrisPillText", ev."priceList", ev."startDate", ev."endDate", ev."startTime", ev."endTime"
-
         UNION ALL
-
-        -- 4th query: offerTypeId=14 (all records, only active SKUs in string_agg)
          SELECT eo."eventId" AS event_id,
             eo.page,
             eo."pagePosition",
@@ -247,45 +151,18 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpLoyFixedPctDiscAU"
             concat(to_char(ev."endDate"::timestamp with time zone, 'DD-MM-YYYY'::text), ' ', ev."endTime") AS "END_DATE",
             round(max(eod."advertisedPriceGst"), 2)::numeric(19,2)::character varying(50) AS "VALUE",
             max(tc.configvalue ->> 'CURRTXT'::text) AS "CURRENCY",
-            -- Only aggregate active SKUs
-            string_agg(
-                DISTINCT CASE 
-                    WHEN eod."isSkuActive" = TRUE THEN eod.sku::text 
-                    ELSE NULL 
-                END,
-                ','::text 
-                ORDER BY (
-                    CASE 
-                        WHEN eod."isSkuActive" = TRUE THEN eod.sku::text 
-                        ELSE NULL 
-                    END
-                )
-            ) AS "PRODUCTS",
+            string_agg(DISTINCT eod.sku::text, ','::text ORDER BY (eod.sku::text)) AS "PRODUCTS",
             'False'::text AS "SHOW_PRICE_STRIKE_THROUGH",
             max(ev."salesKeyword"::text) AS "SALE_KEYWORDS"
            FROM "tEvent" ev
              JOIN "tEventOffer" eo ON ev."eventId" = eo."eventId"
-             JOIN "tEventOfferDetail" eod ON eo."eventId" = eod."eventId" 
-                AND eo.page = eod.page 
-                AND eo."pagePosition" = eod."pagePosition" 
-                AND eo."offerId" = eod."offerId" 
-                AND eo."offerNumber" = eod."offerNo"
+             JOIN "tEventOfferDetail" eod ON eo."eventId" = eod."eventId" AND eo.page = eod.page AND eo."pagePosition" = eod."pagePosition" AND eo."offerId" = eod."offerId" AND eo."offerNumber" = eod."offerNo" and eod."isSkuActive"=true
              JOIN "tProducts" p ON eod.sku::text = p.sku::text
-             JOIN "tOfferType" ot ON eo."commercialOfferType"::text = ot."offerType"::text 
-                AND ev.country::text = ot.country::text
-             JOIN "tConfig" tc ON ev.country::text = tc.configkey::text 
-                AND tc.configtype::text = 'COUNTRY'::text
-             LEFT JOIN "tHybrisStickerText" hst ON eo."hybrisStickerText"::text = hst."hybrisStickerText"::text 
-                AND ev.country::text = hst.country::text
-          WHERE ev.country::text = 'AU'::text 
-            AND ev.locked = true 
-            AND eo."isNotAvailableOnline" = false 
-            AND eod."advertisedPrice" > 0::numeric 
-            AND ot."offerTypeId" = 14 
-            AND eo."isRewards" = true 
-            AND NOT (ev."eventType"::text = 'Retail Catalogue'::text AND eo."pagePosition" = 0)
+             JOIN "tOfferType" ot ON eo."commercialOfferType"::text = ot."offerType"::text AND ev.country::text = ot.country::text
+             JOIN "tConfig" tc ON ev.country::text = tc.configkey::text AND tc.configtype::text = 'COUNTRY'::text
+             LEFT JOIN "tHybrisStickerText" hst ON eo."hybrisStickerText"::text = hst."hybrisStickerText"::text AND ev.country::text = hst.country::text
+          WHERE ev.country::text = 'AU'::text AND ev.locked = true AND eo."isNotAvailableOnline" = false AND eod."advertisedPrice" > 0::numeric AND ot."offerTypeId" = 14 AND eo."isRewards" = true AND NOT (ev."eventType"::text = 'Retail Catalogue'::text AND eo."pagePosition" = 0)
           GROUP BY eo."eventId", eo.page, eo."pagePosition", eo."offerId", ot."offerTypeId", ot."hybrisLoyaltyStickerBackgroundColor", ot."hybrisLoyaltyStickerTextColor", ot."hybrisLoyaltyStickerText", ot."hybrisLoyaltyPillBackgroundColor", ot."hybrisLoyaltyPillTextColor", ot."hybrisLoyaltyPillText", ot."hybrisLoyaltyCartMessage", eo."hybrisPillText", ev."priceList", ev."startDate", ev."endDate", ev."startTime", ev."endTime"
-
         ), promo_meta AS (
          SELECT base.event_id,
             base.page,
@@ -384,7 +261,6 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpLoyFixedPctDiscAU"
             base."SALE_KEYWORDS",
             NULL::integer AS chunk_index
            FROM base
-          -- offerTypeIds 1,101,13 go to unchanged (no chunking needed)
           WHERE base.offer_type_id <> ALL (ARRAY[6, 14, 23, 106])
         ), final_rows AS (
          SELECT unchanged.event_id,
@@ -462,3 +338,4 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpLoyFixedPctDiscAU"
 
 ALTER TABLE public."vwUpdHybExpLoyFixedPctDiscAU"
     OWNER TO cdcaudevadmin;
+

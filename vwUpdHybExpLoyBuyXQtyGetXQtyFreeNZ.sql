@@ -33,7 +33,7 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpLoyBuyXQtyGetXQtyFreeNZ"
     'default.png'::text AS "PROMO_IMAGE",
     ( SELECT string_agg(eod.sku::text, ','::text ORDER BY (eod.sku::text)) AS string_agg
            FROM "tEventOfferDetail" eod
-          WHERE eod."eventId" = eo."eventId" AND eod.page = eo.page AND eod."pagePosition" = eo."pagePosition" AND eod."offerId" = eo."offerId" AND eod."offerNo" = eo."offerNumber"AND eod."isSkuActive"=true) AS "PRODUCTS",
+          WHERE eod."eventId" = eo."eventId" AND eod.page = eo.page AND eod."pagePosition" = eo."pagePosition" AND eod."offerId" = eo."offerId" AND eod."offerNo" = eo."offerNumber") AS "PRODUCTS",
     (eo."purchaseQuantity" + eo."freeQuantity"::numeric)::integer AS "QUANTITY1",
     eo."freeQuantity" AS "QUANTITY2",
     ev."salesKeyword" AS "SALE_KEYWORDS"
@@ -41,7 +41,6 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpLoyBuyXQtyGetXQtyFreeNZ"
      JOIN "tEventOffer" eo ON ev."eventId" = eo."eventId" and eo."isOfferActive"=true
      JOIN "tOfferType" ot ON eo."commercialOfferType"::text = ot."offerType"::text AND ev.country::text = ot.country::text
      LEFT JOIN "tHybrisStickerText" hst ON eo."hybrisStickerText"::text = hst."hybrisStickerText"::text AND ev.country::text = hst.country::text
-
   WHERE ev.locked = true AND eo."isNotAvailableOnline" = false AND ot."offerTypeId" = 17 AND eo."advertisedPrice" > 0::numeric AND eo."isRewards" = true AND ev.country::text = 'NZ'::text AND NOT (ev."eventType"::text = 'Retail Catalogue'::text AND eo."pagePosition" = 0);
 
 ALTER TABLE public."vwUpdHybExpLoyBuyXQtyGetXQtyFreeNZ"

@@ -1,14 +1,20 @@
--- View: public.vwUpdHybExpLoyMultiBuyAU
+-- View: public.vwUpdHybExpLoyComboAU
 
--- DROP VIEW public."vwUpdHybExpLoyMultiBuyAU";
+-- DROP VIEW public."vwUpdHybExpLoyComboAU";
 
-CREATE OR REPLACE VIEW public."vwUpdHybExpLoyMultiBuyAU"
+CREATE OR REPLACE VIEW public."vwUpdHybExpLoyComboAU"
  AS
  SELECT DISTINCT concat('C', 'AUS', 'E', eo."eventId"::text, 'P', eo.page::text, 'P',
         CASE
             WHEN eo."pagePosition" = 0 THEN eo."offerId"::text
             ELSE eo."pagePosition"::text
-        END, 'I', eo."commercialOfferItemClass1", 'OT4MULTI', 'V', 1) AS "PROMOTION_CODE",
+        END, 'I', eo."commercialOfferItemClass1",
+        CASE
+            WHEN ot."offerTypeId" = ANY (ARRAY[3, 103]) THEN 'OT3CMB'::text
+            WHEN ot."offerTypeId" = ANY (ARRAY[15, 115]) THEN 'OT15MULTILIST'::text
+            WHEN ot."offerTypeId" = 25 THEN 'OT25CMB'::text
+            ELSE NULL::text
+        END, 'V', 1) AS "PROMOTION_CODE",
     ot."hybrisLoyaltyStickerBackgroundColor" AS "STICKER_BGCOLOR",
     ot."hybrisLoyaltyStickerTextColor" AS "STICKER_COLOR",
     ot."hybrisLoyaltyStickerText" AS "STICKER_TEXT",
@@ -31,17 +37,19 @@ CREATE OR REPLACE VIEW public."vwUpdHybExpLoyMultiBuyAU"
     concat(to_char(ev."startDate"::timestamp with time zone, 'DD-MM-YYYY'::text), ' ', ev."startTime"::text) AS "START_DATE",
     concat(to_char(ev."endDate"::timestamp with time zone, 'DD-MM-YYYY'::text), ' ', ev."endTime"::text) AS "END_DATE",
     'default.png'::text AS "PROMO_IMAGE",
-    COALESCE(concat(eo."requiredQuantity"::text, ':', eo."totalMultiBuyPrice"::numeric(19,2)::text), ''::text) AS "VALUE",
-    ( SELECT string_agg(DISTINCT eod.sku::text, ','::text ORDER BY (eod.sku::text)) AS string_agg
-           FROM "tEventOfferDetail" eod
-          WHERE eod."eventId" = eo."eventId" AND eod.page = eo.page AND eod."pagePosition" = eo."pagePosition" AND eod."offerId" = eo."offerId") AS "PRODUCTS",
+        CASE
+            WHEN ot."offerTypeId" = ANY (ARRAY[3, 103]) THEN sum(round(eo."advertisedPriceGst", 2)) OVER (PARTITION BY eo."offerId")
+            WHEN ot."offerTypeId" = ANY (ARRAY[15, 115]) THEN round(eo."totalMultiBuyPrice", 2)
+            WHEN ot."offerTypeId" = 25 THEN sum(round(eo."advertisedPriceGst", 2)) OVER (PARTITION BY eo."offerId")
+            ELSE NULL::numeric
+        END AS "VALUE",
     ev."salesKeyword" AS "SALE_KEYWORDS"
    FROM "tEvent" ev
      JOIN "tEventOffer" eo ON ev."eventId" = eo."eventId" and eo."isOfferActive"=true
      JOIN "tOfferType" ot ON eo."commercialOfferType"::text = ot."offerType"::text AND ev.country::text = ot.country::text
      LEFT JOIN "tHybrisStickerText" hst ON eo."hybrisStickerText"::text = hst."hybrisStickerText"::text AND ev.country::text = hst.country::text
-  WHERE ev.locked = true AND eo."isNotAvailableOnline" = false AND eo."advertisedPrice" > 0::numeric AND (ot."offerTypeId" = ANY (ARRAY[4, 104])) AND eo."isRewards" = true AND ev.country::text = 'AU'::text AND NOT (ev."eventType"::text = 'Retail Catalogue'::text AND eo."pagePosition" = 0);
+  WHERE ev.locked = true AND eo."isNotAvailableOnline" = false AND eo."advertisedPrice" > 0::numeric AND (ot."offerTypeId" = ANY (ARRAY[3, 103, 15, 115, 25])) AND eo."isRewards" = true AND ev.country::text = 'AU'::text AND NOT (ev."eventType"::text = 'Retail Catalogue'::text AND eo."pagePosition" = 0);
 
-ALTER TABLE public."vwUpdHybExpLoyMultiBuyAU"
+ALTER TABLE public."vwUpdHybExpLoyComboAU"
     OWNER TO cdcaudevadmin;
 

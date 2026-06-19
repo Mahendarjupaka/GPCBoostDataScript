@@ -96,7 +96,6 @@ BEGIN
             ON inv."sku" = d."sku"
 			and inv."company" in (eh."company",'12','52')
         WHERE d."offerId" = p_offerId
-          AND d."offerNo" = p_offerNo
         GROUP BY
             d."sku", d."offerNo", d."offerId",
             eoh."offerId", s."averageMonthlySales",

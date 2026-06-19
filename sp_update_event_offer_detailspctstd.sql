@@ -48,7 +48,7 @@ WITH updateEventOfferDtlForSTDRangePrice AS (
             ppr."exchangeRatePrice",
             ppr."priceControlPlan",
             ppr."pricePoint2",
-            p."vendorBaseCost" ,
+            p."vendorBaseCost",
             p."nationalAvgCost",
 			eoh."spacePurchase",
             eoh."incrementalPercentage",
@@ -58,7 +58,6 @@ WITH updateEventOfferDtlForSTDRangePrice AS (
 			eod."isCategoryForecastLocked",
             COALESCE(SUM(CASE WHEN UPPER(inv."locationType") = 'STORE' THEN inv."onHand" END), 0) AS sohStore,
             COALESCE(SUM(CASE WHEN UPPER(inv."locationType") <> 'STORE' THEN inv."onHand" END), 0) AS sohDc
-            
  
         FROM "tEventOfferDetail" eod
         INNER JOIN "tEventOffer" eoh
@@ -110,7 +109,6 @@ WITH updateEventOfferDtlForSTDRangePrice AS (
 			eoh."OfferTypeId",
 			eod."isCategoryForecastLocked",
 			eod."gst"
-             
     ),
  
     calculationsForEventOfferDtlSTDRangePrice AS (
@@ -123,15 +121,12 @@ WITH updateEventOfferDtlForSTDRangePrice AS (
                     WHEN 'ACC'  THEN d."pricePoint2"
                     ELSE 0
                 END, 0
-            ),2)  AS new_everydayPriceGst,
+            ),2) AS new_everydayPriceGst,
 			CASE 
-            
 			WHEN d."isCategoryForecastLocked" = FALSE 
 			THEN CAST(ROUND((d."incrementalPercentage"::numeric / 100)* ROUND(d.calc_units)::numeric) AS integer)
 			ELSE d."categoryforecast" END as categoryFcst,
-			CASE 
-             
-            WHEN d."clearance" = 'Y' THEN ROUND(COALESCE(
+			CASE WHEN d."clearance" = 'Y' THEN ROUND(COALESCE(
                 CASE d."salesType"
                     WHEN 'CASH' THEN d."exchangeRatePrice"
                     WHEN 'P&C'  THEN d."priceControlPlan"
@@ -140,9 +135,7 @@ WITH updateEventOfferDtlForSTDRangePrice AS (
                 END, 0
             ),2)
 			ELSE ROUND(d."advertisedPriceGst",2) END AS new_advertisedPriceGst,
-			CASE 
-           
-            WHEN d."clearance" = 'Y' THEN ROUND(COALESCE(
+			CASE WHEN d."clearance" = 'Y' THEN ROUND(COALESCE(
                 CASE d."salesType"
                     WHEN 'CASH' THEN d."exchangeRatePrice"
                     WHEN 'P&C'  THEN d."priceControlPlan"
@@ -151,82 +144,54 @@ WITH updateEventOfferDtlForSTDRangePrice AS (
                 END, 0
             )/(1+ COALESCE(d.gst_value, 0)),2)
 			ELSE ROUND((d."advertisedPriceGst")/(1+ COALESCE(d.gst_value, 0)),2) END AS new_advertisedPrice,
-			 ROUND(d."nationalAvgCost", 2)  AS natAvgCost
-            
-
+			ROUND(d."nationalAvgCost",2) as natAvgCost
         FROM updateEventOfferDtlForSTDRangePrice d
     )
     UPDATE "tEventOfferDetail" e
     SET
-        "everydayUnits" = ROUND(c.calc_units)
-,
-        "everydayPrice" = Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2)
-,
-        "everydayPriceGst" = c.new_everydayPriceGst
-,
-        "everydayPriceGstSys" = c.new_everydayPriceGst
-,
-		"advertisedPriceGst" = c.new_advertisedPriceGst
-,
-		"advertisedPrice" = c.new_advertisedPrice
-,
-		"calculatedSaveValue"= Round(c.new_everydayPriceGst-c.new_advertisedPriceGst,2)
-,
-		"calculatedSavePercentage" = CASE  
-
+        "everydayUnits" = ROUND(c.calc_units),
+        "everydayPrice" = Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2),
+        "everydayPriceGst" = c.new_everydayPriceGst,
+        "everydayPriceGstSys" = c.new_everydayPriceGst,
+		"advertisedPriceGst" = c.new_advertisedPriceGst,
+		"advertisedPrice" = c.new_advertisedPrice,
+		"calculatedSaveValue"= Round(c.new_everydayPriceGst-c.new_advertisedPriceGst,2),
+		"calculatedSavePercentage" = CASE 
     WHEN c.new_everydayPriceGst > 0 THEN ROUND(((c.new_everydayPriceGst - c.new_advertisedPriceGst) / c.new_everydayPriceGst)* 100, 2)
     ELSE 0 
 END,
-		"categoryforecast" = c.categoryFcst
-,
-        "forecastCost"=Round(ROUND(COALESCE(c."vendorBaseCost",0),2)*c.categoryFcst,2)
-,
-        "forecastSales"=Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2)
-,
-		"incrementalForecast"=c.categoryFcst-ROUND(c.calc_units)
-,
-        "nationalAverageCost" = COALESCE(c.natAvgCost, 0)
-,
+		"categoryforecast" = c.categoryFcst,
+        "forecastCost"=Round(ROUND(COALESCE(c."vendorBaseCost",0),2)*c.categoryFcst,2),
+        "forecastSales"=Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2),
+		"incrementalForecast"=c.categoryFcst-ROUND(c.calc_units),
+        "nationalAverageCost" = COALESCE(c.natAvgCost, 0),
 		"clearanceIndicator" = CASE WHEN c."clearance" IS NULL OR TRIM(c."clearance") = '' THEN 'N' ELSE c."clearance" END,
-         "forecastTradeMargin$" = ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorBaseCost",0),2)) * c.categoryFcst,2)
-,
-        "stockOnHandStore" = c.sohStore
-,
-        "stockOnHandDC"    = c.sohDc
-,
-        "LatestEffectiveCost" = ROUND(ROUND(COALESCE(c."vendorBaseCost",0),2),2)
-,
-        "categoryCost"        = COALESCE(c.natAvgCost, 0)
-,
-        "everydayExtendedUnitCost"  = ROUND(c.calc_units) * COALESCE(c.natAvgCost, 0)
-,
-        "everydayExtendedUnitSales" = ROUND(c.calc_units )* c.new_everydayPriceGst
-,
+         "forecastTradeMargin$" = ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorBaseCost",0),2)) * c.categoryFcst,2),
+        "stockOnHandStore" = c.sohStore,
+        "stockOnHandDC"    = c.sohDc,
+        "LatestEffectiveCost" = ROUND(ROUND(COALESCE(c."vendorBaseCost",0),2),2),
+        "categoryCost"        = COALESCE(c.natAvgCost, 0),
+        "everydayExtendedUnitCost"  = ROUND(c.calc_units) * COALESCE(c.natAvgCost, 0),
+        "everydayExtendedUnitSales" = ROUND(c.calc_units )* c.new_everydayPriceGst,
  
-        "extendedAdvertisedPrice" = ROUND(c.calc_units )* COALESCE(c.new_advertisedPriceGst, 0)
-,
-        "everydayCost" = COALESCE(c.natAvgCost, 0)
-,
-        "incrementalSales"=Round(Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) - (ROUND(c.calc_units)*c.new_everydayPriceGst),2)
-,
-        "incrementalTrade$" =  ROUND( ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorBaseCost",0),2)) * c.categoryFcst,2) - ROUND((Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2)-ROUND(COALESCE(c."vendorBaseCost",0),2) )*ROUND(c.calc_units),2), 2)
-,
-        "forecastTradeMargin%" = CASE  
-
-        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) > 0
+        "extendedAdvertisedPrice" = ROUND(c.calc_units )* COALESCE(c.new_advertisedPriceGst, 0),
+        "everydayCost" = COALESCE(c.natAvgCost, 0),
+        "incrementalSales"=Round(Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) - (ROUND(c.calc_units)*c.new_everydayPriceGst),2),
+        "incrementalTrade$" =  ROUND( ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorBaseCost",0),2)) * c.categoryFcst,2) - ROUND((Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2)-ROUND(COALESCE(c."vendorBaseCost",0),2) )*ROUND(c.calc_units),2), 2),
+        "forecastTradeMargin%" = CASE 
+        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPrice,2),2) > 0
         THEN             
                ROUND(((c.new_advertisedPrice - ROUND(COALESCE(c."vendorBaseCost",0),2)) * c.categoryFcst) / (c.categoryFcst * c.new_advertisedPrice) * 100, 2)
  
         ELSE 0
 		END,
 		"totalTieUp" = 
-        ((COALESCE(e."group0Quantity",0) * COALESCE(c."G0",0)) +
+        (COALESCE(e."group0Quantity",0) * COALESCE(c."G0",0)) +
         (COALESCE(e."group1Quantity",0) * COALESCE(c."G1",0)) +
         (COALESCE(e."group2Quantity",0) * COALESCE(c."G2",0)) +
         (COALESCE(e."group3Quantity",0) * COALESCE(c."G3",0)) +
         (COALESCE(e."group4Quantity",0) * COALESCE(c."G4",0)) +
-        (COALESCE(e."group5Quantity",0) * COALESCE(c."G5",0)))
-,
+        (COALESCE(e."group5Quantity",0) * COALESCE(c."G5",0)),
     "tieUpCost" = ROUND(
         ((COALESCE(e."group0Quantity",0) * COALESCE(c."G0",0)) +
          (COALESCE(e."group1Quantity",0) * COALESCE(c."G1",0)) +
@@ -236,7 +201,6 @@ END,
          (COALESCE(e."group5Quantity",0) * COALESCE(c."G5",0)))
          * ROUND(COALESCE(c."vendorBaseCost",0),2),
     2)
-
     FROM calculationsForEventOfferDtlSTDRangePrice c
     WHERE e."sku" = c."sku"
       AND e."offerNo" = c."offerNo"
@@ -270,8 +234,8 @@ WITH updateEventOfferDtlForPCTOffRange AS (
             ppr."exchangeRatePrice",
             ppr."priceControlPlan",
             ppr."pricePoint2",
-            p."vendorBaseCost" ,
-            p."nationalAvgCost" ,
+            p."vendorBaseCost",
+            p."nationalAvgCost",
             eoh."incrementalPercentage",
 			eod."everydayUnits",
 			eod."categoryforecast",
@@ -279,7 +243,6 @@ WITH updateEventOfferDtlForPCTOffRange AS (
 			eod."isCategoryForecastLocked",
             COALESCE(SUM(CASE WHEN UPPER(inv."locationType") = 'STORE' THEN inv."onHand" END), 0) AS sohStore,
             COALESCE(SUM(CASE WHEN UPPER(inv."locationType") <> 'STORE' THEN inv."onHand" END), 0) AS sohDc
-            
  
         FROM "tEventOfferDetail" eod
         INNER JOIN "tEventOffer" eoh
@@ -291,8 +254,8 @@ WITH updateEventOfferDtlForPCTOffRange AS (
             ON p."sku" = eod."sku" and p."isActive"=true
         INNER JOIN "tPriceProductRules" ppr
             ON ppr."sku" = eod."sku"
-AND ppr."company" = eh."company"
- and ppr."supplierId"=p."supplierId"
+            AND ppr."company" = eh."company"
+            and ppr."supplierId"=p."supplierId"
             and ppr."startDate"<=CURRENT_DATE and  ppr."endDate">=CURRENT_DATE
             and ppr."isActive" = TRUE
         INNER JOIN "tConfig" config
@@ -331,13 +294,12 @@ AND ppr."company" = eh."company"
 			 eoh."OfferTypeId",
 			 eod."isCategoryForecastLocked",
 			 eod."gst"
-             
     ),
  
     calculationsForEventOfferDtlPCTOffRange AS (
         SELECT
             d.*,
-             ROUND(COALESCE(
+            ROUND(COALESCE(
                 CASE d."salesType"
                     WHEN 'CASH' THEN d."exchangeRatePrice"
                     WHEN 'P&C'  THEN d."priceControlPlan"
@@ -346,13 +308,10 @@ AND ppr."company" = eh."company"
                 END, 0
             ),2) AS new_everydayPriceGst,
 			CASE 
-            
 			WHEN d."isCategoryForecastLocked" = FALSE 
 			THEN CAST(ROUND((d."incrementalPercentage"::numeric / 100)* ROUND(d.calc_units)::numeric) AS integer)
 			ELSE d."categoryforecast" END AS categoryFcst,
-			CASE 
-           
-            WHEN d."clearance" = 'Y' THEN ROUND(COALESCE(
+			CASE WHEN d."clearance" = 'Y' THEN ROUND(COALESCE(
                 CASE d."salesType"
                     WHEN 'CASH' THEN d."exchangeRatePrice"
                     WHEN 'P&C'  THEN d."priceControlPlan"
@@ -375,9 +334,7 @@ AND ppr."company" = eh."company"
                     ELSE 0
                 END, 0
             )*d."savePercent"/100),2) END AS new_advertisedPriceGst,
-			CASE 
-            
-            WHEN d."clearance" = 'Y' THEN ROUND(COALESCE(
+			CASE WHEN d."clearance" = 'Y' THEN ROUND(COALESCE(
                 CASE d."salesType"
                     WHEN 'CASH' THEN d."exchangeRatePrice"
                     WHEN 'P&C'  THEN d."priceControlPlan"
@@ -399,82 +356,54 @@ AND ppr."company" = eh."company"
                     WHEN 'ACC'  THEN d."pricePoint2"
                     ELSE 0
                 END, 0
-            )*d."savePercent"/100))/(1+ COALESCE(d.gst_value, 0)),2) END AS new_advertisedPrice,
-            ROUND(d."nationalAvgCost", 2)  AS nationalAvgCost
-         
+            )*d."savePercent"/100))/(1+ COALESCE(d.gst_value, 0)),2) END AS new_advertisedPrice
         FROM updateEventOfferDtlForPCTOffRange d
     )
     UPDATE "tEventOfferDetail" e
     SET
-        "everydayUnits" = ROUND(c.calc_units)
-,
-        "everydayPrice" = Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2)
-,
-        "everydayPriceGst" = c.new_everydayPriceGst
-,
-        "everydayPriceGstSys" = c.new_everydayPriceGst
-,
-		"advertisedPriceGst"= c.new_advertisedPriceGst
-,
-		"advertisedPrice"= c.new_advertisedPrice
-,
-"calculatedSaveValue"= Round(e."everydayPriceGst"-c.new_advertisedPriceGst,2)
-,
-		"calculatedSavePercentage" = CASE  
-
+        "everydayUnits" = ROUND(c.calc_units),
+        "everydayPrice" = Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2),
+        "everydayPriceGst" = c.new_everydayPriceGst,
+        "everydayPriceGstSys" = c.new_everydayPriceGst,
+		"advertisedPriceGst"= c.new_advertisedPriceGst,
+		"advertisedPrice"= c.new_advertisedPrice,
+"calculatedSaveValue"= Round(e."everydayPriceGst"-c.new_advertisedPriceGst,2),
+		"calculatedSavePercentage" = CASE 
     WHEN c.new_everydayPriceGst > 0 THEN ROUND(((c.new_everydayPriceGst - c.new_advertisedPriceGst) / c.new_everydayPriceGst)* 100, 2)
     ELSE 0 
 END,
 "clearanceIndicator" = CASE WHEN c."clearance" IS NULL OR TRIM(c."clearance") = '' THEN 'N' ELSE c."clearance" END,
-		"categoryforecast" = c.categoryFcst
-,
-        "forecastCost"=Round(ROUND(COALESCE(c."vendorBaseCost",0),2)*c.categoryFcst,2)
-,
-        "forecastSales"=Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2)
-,
-		"incrementalForecast"=c.categoryFcst-ROUND(c.calc_units)
-,
-        "nationalAverageCost" = COALESCE(c."nationalAvgCost", 0)
-,
-         "forecastTradeMargin$" = ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorBaseCost",0),2)) * c.categoryFcst,2)
-,
-        "stockOnHandStore" = c.sohStore
-,
-        "stockOnHandDC"    = c.sohDc
-,
-        "LatestEffectiveCost" = ROUND(ROUND(COALESCE(c."vendorBaseCost",0),2),2)
-,
-        "categoryCost"        = COALESCE(c."nationalAvgCost", 0)
-,
-        "everydayExtendedUnitCost"  = ROUND(c.calc_units )* COALESCE(c."nationalAvgCost", 0)
-,
-        "everydayExtendedUnitSales" = ROUND(c.calc_units )* c.new_everydayPriceGst
-,
+		"categoryforecast" = c.categoryFcst,
+        "forecastCost"=Round(ROUND(COALESCE(c."vendorBaseCost",0),2)*c.categoryFcst,2),
+        "forecastSales"=Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2),
+		"incrementalForecast"=c.categoryFcst-ROUND(c.calc_units),
+        "nationalAverageCost" = COALESCE(c."nationalAvgCost", 0),
+         "forecastTradeMargin$" = ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorBaseCost",0),2)) * c.categoryFcst,2),
+        "stockOnHandStore" = c.sohStore,
+        "stockOnHandDC"    = c.sohDc,
+        "LatestEffectiveCost" = ROUND(ROUND(COALESCE(c."vendorBaseCost",0),2),2),
+        "categoryCost"        = COALESCE(c."nationalAvgCost", 0),
+        "everydayExtendedUnitCost"  = ROUND(c.calc_units )* COALESCE(c."nationalAvgCost", 0),
+        "everydayExtendedUnitSales" = ROUND(c.calc_units )* c.new_everydayPriceGst,
  
-        "extendedAdvertisedPrice" = ROUND(c.calc_units )* COALESCE(c.new_advertisedPriceGst, 0)
-,
-        "everydayCost" = COALESCE(c."nationalAvgCost", 0)
-,
-        "incrementalSales"=Round(Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) - (ROUND(c.calc_units)*c.new_everydayPriceGst),2)
-,
-        "incrementalTrade$" =  ROUND( ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorBaseCost",0),2)) * c.categoryFcst,2) - ROUND((Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2)-ROUND(COALESCE(c."vendorBaseCost",0),2) )*ROUND(c.calc_units),2), 2)
-,
-        "forecastTradeMargin%" = CASE  
-
-        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) > 0
+        "extendedAdvertisedPrice" = ROUND(c.calc_units )* COALESCE(c.new_advertisedPriceGst, 0),
+        "everydayCost" = COALESCE(c."nationalAvgCost", 0),
+        "incrementalSales"=Round(Round(c.categoryFcst*ROUND(c.new_advertisedPriceGst,2),2) - (ROUND(c.calc_units)*c.new_everydayPriceGst),2),
+        "incrementalTrade$" =  ROUND( ROUND((c.new_advertisedPrice - ROUND(COALESCE(c."vendorBaseCost",0),2)) * c.categoryFcst,2) - ROUND((Round(c.new_everydayPriceGst / (1 + COALESCE(c.gst_value, 0)),2)-ROUND(COALESCE(c."vendorBaseCost",0),2) )*ROUND(c.calc_units),2), 2),
+        "forecastTradeMargin%" = CASE 
+        WHEN Round(c.categoryFcst*ROUND(c.new_advertisedPrice,2),2) > 0
         THEN             
                ROUND(((c.new_advertisedPrice - ROUND(COALESCE(c."vendorBaseCost",0),2)) *c.categoryFcst) / (c.categoryFcst * c.new_advertisedPrice) * 100, 2)
  
         ELSE 0
 		END,
 		"totalTieUp" = 
-        ((COALESCE(e."group0Quantity",0) * COALESCE(c."G0",0)) +
+        (COALESCE(e."group0Quantity",0) * COALESCE(c."G0",0)) +
         (COALESCE(e."group1Quantity",0) * COALESCE(c."G1",0)) +
         (COALESCE(e."group2Quantity",0) * COALESCE(c."G2",0)) +
         (COALESCE(e."group3Quantity",0) * COALESCE(c."G3",0)) +
         (COALESCE(e."group4Quantity",0) * COALESCE(c."G4",0)) +
-        (COALESCE(e."group5Quantity",0) * COALESCE(c."G5",0)))
-,
+        (COALESCE(e."group5Quantity",0) * COALESCE(c."G5",0)),
     "tieUpCost" = ROUND(
         ((COALESCE(e."group0Quantity",0) * COALESCE(c."G0",0)) +
          (COALESCE(e."group1Quantity",0) * COALESCE(c."G1",0)) +
@@ -484,7 +413,6 @@ END,
          (COALESCE(e."group5Quantity",0) * COALESCE(c."G5",0)))
          * ROUND(COALESCE(c."vendorBaseCost",0),2),
     2)
-
     FROM calculationsForEventOfferDtlPCTOffRange c
     WHERE e."sku" = c."sku"
       AND e."offerNo" = c."offerNo"
@@ -527,8 +455,8 @@ WITH EventOfferDtlSummaryForStdRangePrice AS (
     WHERE  (o."OfferTypeId" IN (14))
 	  AND d."offerNo" = o."offerNumber"
 	  AND d."offerId" = o."offerId"
-      AND d."isSkuActive" = TRUE
 	  --AND COALESCE(d."isSkuActive", TRUE) = TRUE
+      AND d."isSkuActive" = TRUE
     GROUP BY d."offerId", d."eventId",   d."offerNo", d."gst"
 )
 UPDATE public."tEventOffer" AS o
@@ -590,9 +518,9 @@ SET
 	"everydayPrice"         = ROUND(s."everydayPrice" / (1 + s.gst_value), 2),
     "savePercent" = ROUND(s."savePercent", 2)
 	FROM EventOfferDtlSummaryforAdvPriceForStdRangePrice s
-    WHERE o."offerId" = s."offerId"
-    AND o."eventId" = s."eventId"
-    AND o."offerNumber" = s."offerNo";
+WHERE o."offerId" = s."offerId"
+  AND o."eventId" = s."eventId"
+  AND o."offerNumber" = s."offerNo";
  
 --===============================================================================================================
 -- UPDATE tEventOffer For PCT OFF RANGE
